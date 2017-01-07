@@ -7,9 +7,10 @@ function qruqsp_admin_main() {
     //
     this.menu = new Q.panel('System Admin', 'qruqsp_admin_main', 'menu', 'mc', 'narrow', 'sectioned', 'qruqsp.admin.main.menu');
     this.menu.sections = {
-//        'stations':{'label':'Stations', 'list':{
-//            'add':{'label':'Add Station', 'fn':'Q.qruqsp_admin_main.stations.open(\'Q.qruqsp_admin_main.menu.show();\');'},
-//        }},
+        'stations':{'label':'Stations', 'list':{
+            'add':{'label':'Add Station', 'fn':'Q.qruqsp_admin_main.station.open(\'Q.qruqsp_admin_main.menu.show();\');'},
+            'all':{'label':'Stations', 'fn':'Q.qruqsp_admin_main.stations.open(\'Q.qruqsp_admin_main.menu.show();\');'},
+        }},
         'users':{'label':'Users', 'list':{
 //            'sysadmins':{'label':'Sys Admins', 'fn':'Q.qruqsp_admin_main.sysadmins.open(\'Q.qruqsp_admin_main.menu.show();\');'},
 //            'locked':{'label':'Locked Users', 'fn':'Q.qruqsp_admin_main.lockedusers.open(\'Q.qruqsp_admin_main.menu.show();\');'},
@@ -22,6 +23,122 @@ function qruqsp_admin_main() {
         }},
     }
     this.menu.addClose('Back');
+
+    //
+    // The panel to display the list of stations
+    //
+    this.stations = new Q.panel('Stations', 'qruqsp_admin_main', 'stations', 'mc', 'narrow', 'sectioned', 'qruqsp.admin.main.stations');
+    this.stations.sections = {
+        'stations':{'label':'Stations', 'type':'simplegrid', 'num_cols':1, 
+            'headerValue':null,
+            'addTxt':'Add Station',
+            'addFn':'Q.qruqsp_admin_main.station.open(\'Q.qruqsp_admin_main.stations.open();\',0,[]);',
+            },
+    }
+    this.stations.cellValue = function(s, i, j, d) {
+        switch(j) {
+            case 0: return d.name;
+        }
+    }
+    this.stations.rowFn = function(s, i, d) {
+        return 'Q.qruqsp_admin_main.station.open(\'Q.qruqsp_admin_main.stations.open();\',\'' + d.id + '\',Q.qruqsp_admin_main.stations.data.nplist);';
+    }
+    this.stations.open = function(cb) {
+        Q.api.getJSONCb('qruqsp.core.stationList', {}, function(rsp) {
+            if( rsp.stat != 'ok' ) {
+                Q.api.err(rsp);
+                return false;
+            }
+            var p = Q.qruqsp_admin_main.stations;
+            p.data = rsp;
+            p.refresh();
+            p.show(cb);
+        });
+    }
+    this.stations.addClose('Back');
+
+    //
+    // The panel to edit station details
+    //
+    this.station = new Q.panel('Station', 'qruqsp_admin_main', 'station', 'mc', 'medium', 'sectioned', 'qruqsp.admin.main.station');
+    this.station.data = null;
+    this.station.station_id = 0;
+    this.station.nplist = [];
+    this.station.sections = {
+        'general':{'label':'', 'aside':'yes','fields':{
+            'name':{'label':'Name', 'type':'text'},
+            'category':{'label':'Category', 'type':'text'},
+            }},
+        '_buttons':{'label':'', 'buttons':{
+            'save':{'label':'Save', 'fn':'Q.qruqsp_admin_main.station.save();'},
+//            'delete':{'label':'Delete', 
+//                'visible':function() {return Q.qruqsp_admin_main.station.station_id > 0 ? 'yes' : 'no'; },
+//                'fn':'Q.qruqsp_admin_main.station.remove();'},
+            }},
+        };
+    this.station.fieldValue = function(s, i, d) { return this.data[i]; }
+//    this.station.fieldHistoryArgs = function(s, i) {
+//        return {'method':'qruqsp.core.stationHistory', 'args':{'station_id':Q.curStationID, 'station_id':this.station_id, 'field':i}};
+//    }
+    this.station.open = function(cb, sid, list) {
+        if( sid != null ) { this.station_id = sid; }
+        if( list != null ) { this.nplist = list; }
+        Q.api.getJSONCb('qruqsp.core.stationGet', {'station_id':this.station_id}, function(rsp) {
+            if( rsp.stat != 'ok' ) {
+                Q.api.err(rsp);
+                return false;
+            }
+            var p = Q.qruqsp_admin_main.station;
+            p.data = rsp.station;
+            p.refresh();
+            p.show(cb);
+        });
+    }
+    this.station.save = function(cb) {
+        if( cb == null ) { cb = 'Q.qruqsp_admin_main.station.close();'; }
+        if( !this.checkForm() ) { return false; }
+        if( this.station_id > 0 ) {
+            var c = this.serializeForm('no');
+            if( c != '' ) {
+                Q.api.postJSONCb('qruqsp.core.stationUpdate', {'station_id':this.station_id}, c, function(rsp) {
+                    if( rsp.stat != 'ok' ) {
+                        Q.api.err(rsp);
+                        return false;
+                    }
+                    eval(cb);
+                });
+            } else {
+                eval(cb);
+            }
+        } else {
+            var c = this.serializeForm('yes');
+            console.log(c);
+            Q.api.postJSONCb('qruqsp.core.stationAdd', {}, c, function(rsp) {
+                if( rsp.stat != 'ok' ) {
+                    Q.api.err(rsp);
+                    return false;
+                }
+                Q.qruqsp_admin_main.station.station_id = rsp.id;
+                eval(cb);
+            });
+        }
+    }
+    this.station.nextButtonFn = function() {
+        if( this.nplist != null && this.station_id > 0 && this.nplist.indexOf('' + this.station_id) < (this.nplist.length - 1) ) {
+            return 'Q.qruqsp_admin_main.station.save(\'Q.qruqsp_admin_main.station.open(null,' + this.nplist[this.nplist.indexOf('' + this.station_id) + 1] + ');\');';
+        }
+        return null;
+    }
+    this.station.prevButtonFn = function() {
+        if( this.nplist != null && this.station_id > 0 && this.nplist.indexOf('' + this.station_id) > 0 ) {
+            return 'Q.qruqsp_admin_main.station.save(\'Q.qruqsp_admin_main.station.open(null,' + this.nplist[this.nplist.indexOf('' + this.station_id) - 1] + ');\');';
+        }
+        return null;
+    }
+    this.station.addButton('save', 'Save', 'Q.qruqsp_admin_main.station.save();');
+    this.station.addClose('Cancel');
+    this.station.addButton('next', 'Next');
+    this.station.addLeftButton('prev', 'Prev');
 
     //
     // the panel for the user administration
