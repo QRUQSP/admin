@@ -67,7 +67,8 @@ function qruqsp_admin_main() {
     this.station.sections = {
         'general':{'label':'', 'aside':'yes','fields':{
             'name':{'label':'Name', 'type':'text'},
-            'category':{'label':'Category', 'type':'text'},
+//            'category':{'label':'Category', 'type':'text'},
+            'permalink':{'label':'Sitename', 'type':'text'},
             }},
         '_buttons':{'label':'', 'buttons':{
             'save':{'label':'Save', 'fn':'Q.qruqsp_admin_main.station.save();'},
